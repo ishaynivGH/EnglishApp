@@ -240,16 +240,24 @@
                 recognition.onstart = function() {
                     console.log("Speech recognition started");
                     recognitionRetries = 0;
-                    // Set timeout for 6 seconds of silence
+                    // Set timeout for 6 seconds - force stop if no result
                     recognitionTimeout = setTimeout(() => {
-                        if (isListening && recognitionRetries < MAX_RETRIES) {
+                        console.log("6-second timeout reached, stopping recognition");
+                        if (isListening) {
+                            try {
+                                recognition.abort(); // Force stop
+                            } catch(e) {
+                                console.log("Error aborting:", e);
+                            }
                             stopListening();
-                            showFeedback("לא שמעתי... מנסים שוב 🎤", "text-amber-500");
-                            setTimeout(() => startListening(), 500);
-                            recognitionRetries++;
-                        } else if (isListening) {
-                            stopListening();
-                            showFeedback("בואו ננסה משהו אחר 🎮", "text-rose-500");
+
+                            if (recognitionRetries < MAX_RETRIES) {
+                                showFeedback("לא שמעתי... מנסים שוב 🎤", "text-amber-500");
+                                recognitionRetries++;
+                                setTimeout(() => startListening(), 500);
+                            } else {
+                                showFeedback("בואו ננסה משהו אחר 🎮", "text-rose-500");
+                            }
                         }
                     }, 6000);
                 };
@@ -709,18 +717,38 @@
             }
 
             try {
-                isListening = true;
-                const actionBtn = document.getElementById('action-btn');
-                actionBtn.classList.add('listening');
-                actionBtn.classList.remove('active:shadow-none');
-                document.getElementById('action-text').innerText = "🔴 מקשיב...";
-
-                showFeedback("🎤 דברו עכשיו!\nיש לך 6 שניות", "text-pink-500");
-
-                // Try to start recognition
-                if (recognition.state === 'inactive') {
-                    recognition.start();
+                // Make sure any previous recognition is fully stopped
+                clearTimeout(recognitionTimeout);
+                try {
+                    recognition.abort();
+                } catch(e) {
+                    // Ignore errors if already stopped
                 }
+
+                // Small delay to ensure clean state
+                setTimeout(() => {
+                    if (gameMode !== 'speaking' && (gameMode !== 'sentences' || sentencePhase !== 'speak')) {
+                        return; // Game mode changed
+                    }
+
+                    isListening = true;
+                    const actionBtn = document.getElementById('action-btn');
+                    actionBtn.classList.add('listening');
+                    actionBtn.classList.remove('active:shadow-none');
+                    document.getElementById('action-text').innerText = "🔴 מקשיב...";
+
+                    showFeedback("🎤 דברו עכשיו!\nיש לך 6 שניות", "text-pink-500");
+
+                    try {
+                        recognition.start();
+                        console.log("Recognition started");
+                    } catch(e) {
+                        if (e.name !== 'InvalidStateError') {
+                            throw e;
+                        }
+                        console.log("Recognition already running");
+                    }
+                }, 100);
             } catch(e) {
                 console.error("Error starting listening:", e);
                 isListening = false;
@@ -733,12 +761,19 @@
             try {
                 isListening = false;
                 clearTimeout(recognitionTimeout);
-                recognition.stop();
+                // Use abort() instead of stop() for more forceful termination
+                try {
+                    recognition.abort();
+                } catch(e) {
+                    recognition.stop();
+                }
                 const actionBtn = document.getElementById('action-btn');
                 actionBtn.classList.remove('listening');
                 document.getElementById('action-text').innerText = "לחצו ודברו";
+                console.log("Listening stopped");
             } catch(e) {
                 console.error("Error stopping listening:", e);
+                isListening = false;
             }
         }
 
