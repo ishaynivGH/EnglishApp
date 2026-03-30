@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>אפליקציית משחקי אנגלית לילדים</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pop { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .animate-pop { animation: pop 0.3s ease-out; }
+        
+        @keyframes pulse-soft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .animate-pulse-soft { animation: pulse-soft 2s infinite; }
+
+        @keyframes mic-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .listening {
+            animation: mic-pulse 1.5s infinite;
+            background-color: #ef4444 !important; 
+            color: white !important;
+            border-color: #dc2626 !important;
+        }
+
+        @keyframes slide-up { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+        .animate-shake { animation: shake 0.4s; }
+
+        .swipeable-container { touch-action: none; }
+        body { user-select: none; -webkit-user-select: none; overflow-x: hidden; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .shrink-away {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(0) rotate(90deg); opacity: 0; pointer-events: none; position: absolute;
+        }
+        .card-flip { transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.3s; }
+        .card-face-down { transform: scaleX(-1); background: repeating-linear-gradient(45deg, #e0e7ff, #e0e7ff 10px, #c7d2fe 10px, #c7d2fe 20px); color: transparent; text-shadow: none; }
+        
+        .match-btn { transition: all 0.2s; }
+        .match-selected { border-color: #3b82f6 !important; background-color: #eff6ff !important; transform: scale(1.05); }
+        .match-correct { border-color: #10b981 !important; background-color: #d1fae5 !important; color: #047857 !important; pointer-events: none; opacity: 0.8; }
+    </style>
+</head>
+<body class="bg-indigo-50 min-h-screen flex flex-col items-center py-4 sm:py-8 font-sans text-slate-800 px-2 sm:px-4">
+    
+    <div class="max-w-3xl w-full bg-white rounded-3xl shadow-2xl p-4 sm:p-8 text-center border-4 border-indigo-100 relative min-h-[650px] max-h-[95vh] flex flex-col overflow-y-auto custom-scrollbar">
+        
+        <div id="progress-container" class="absolute top-0 left-0 w-full h-2 bg-slate-100 rounded-t-3xl overflow-hidden z-20">
+            <div id="progress-bar" class="h-full bg-indigo-500 transition-all duration-500" style="width: 0%;"></div>
+        </div>
+
+        <button id="back-btn" onclick="goBackToMenu()" class="hidden absolute top-4 right-4 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-500 transition-colors bg-slate-50 hover:bg-indigo-50 rounded-xl p-2 active:scale-95 z-30">
+            <span class="text-2xl leading-none">🏠</span>
+            <span class="text-xs font-bold mt-1">תפריט</span>
+        </button>
+
+        <div class="mt-4 mb-4 relative z-10 flex-shrink-0">
+            <h1 id="main-title" class="text-3xl sm:text-4xl font-extrabold text-indigo-600 mb-2">אנגלית בכיף 🚀</h1>
+            <p id="sub-title" class="text-slate-500 text-lg font-medium">בחרו איזה משחק תרצו לשחק!</p>
+        </div>
+
+        <div id="start-screen" class="flex-grow flex flex-col items-center justify-center gap-3 sm:gap-4 py-2 w-full max-w-xl mx-auto">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                <button onclick="startGame('letters')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-3 rounded-2xl shadow-[0_4px_0_#2563eb] active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-2xl">🅰️</div>
+                    <div class="text-right leading-tight"><div class="text-lg">משחק אותיות</div></div>
+                </button>
+                <button onclick="startGame('sounds')" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-3 rounded-2xl shadow-[0_4px_0_#7c3aed] active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-2xl">🍎</div>
+                    <div class="text-right leading-tight"><div class="text-lg">צליל פותח</div></div>
+                </button>
+                <button onclick="startGame('missing')" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-3 rounded-2xl shadow-[0_4px_0_#0d9488] active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-2xl">🧩</div>
+                    <div class="text-right leading-tight"><div class="text-lg">השלם מילה</div></div>
+                </button>
+                <button onclick="startGame('elimination')" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-3 rounded-2xl shadow-[0_4px_0_#e11d48] active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-2xl">🧹</div>
+                    <div class="text-right leading-tight"><div class="text-lg">משחק הניפוי</div></div>
+                </button>
+            </div>
+
+            <div class="w-full border-t-2 border-slate-100 pt-4 mt-2">
+                <p class="text-sm text-slate-400 mb-3 font-bold uppercase tracking-wider">שלב מתקדם 🔥</p>
+                <button onclick="startGame('sentences')" class="w-full bg-sky-500 hover:bg-sky-600 text-white text-xl font-bold py-4 px-4 rounded-2xl shadow-[0_6px_0_#0284c7] active:translate-y-[6px] active:shadow-none transition-all flex items-center gap-4 mb-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-3xl">📝</div>
+                    <div class="text-right"><div class="text-xl">השלם משפט PRO</div><div class="text-xs font-normal text-sky-100">תרגום ➔ השלמה ➔ דיבור!</div></div>
+                </button>
+                <button onclick="startGame('speaking')" class="w-full bg-pink-500 hover:bg-pink-600 text-white text-xl font-bold py-4 px-4 rounded-2xl shadow-[0_6px_0_#db2777] active:translate-y-[6px] active:shadow-none transition-all flex items-center gap-4 mb-3">
+                    <div class="bg-white/20 p-2 rounded-xl text-3xl">🎤</div>
+                    <div class="text-right"><div class="text-xl">אתגר הדיבור (דיקציה)</div><div class="text-xs font-normal text-pink-100">לחצו על המיקרופון ואמרו את המילה</div></div>
+                </button>
+                <button onclick="startGame('memory')" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-xl font-bold py-3 px-4 rounded-2xl shadow-[0_4px_0_#d97706] active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-4">
+                    <div class="bg-white/20 p-2 rounded-xl text-2xl">🧠</div>
+                    <div class="text-right"><div class="text-lg">זיכרון (2 שחקנים)</div></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- מסך משחק כללי -->
+        <div id="game-screen" class="hidden flex-grow flex flex-col items-center w-full">
+            <div id="visual-display" class="flex flex-col items-center justify-center mb-4 animate-slide-up w-full min-h-[100px] flex-shrink-0"></div>
+
+            <button id="action-btn" onclick="handleMainAction()" class="animate-pulse-soft bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-8 rounded-2xl shadow-[0_6px_0_#059669] active:shadow-none active:translate-y-[6px] transition-all mb-4 mx-auto flex items-center justify-center gap-3 text-xl w-full sm:w-auto relative z-10 flex-shrink-0">
+                <span id="action-icon" class="text-3xl">🔊</span> <span id="action-text">השמע שוב</span>
+            </button>
+            
+            <div id="sentence-tasks-area" class="w-full flex-col hidden flex-grow justify-start">
+                <div id="task-1-container" class="w-full mb-6 transition-all duration-500">
+                    <h3 id="task-1-title" class="text-lg sm:text-xl font-bold text-sky-600 mb-3 bg-sky-50 py-1 rounded-lg">1. התאמת תרגום</h3>
+                    <div id="translation-area" class="flex flex-col w-full gap-4">
+                        <div id="trans-en" class="flex flex-wrap justify-center gap-2 sm:gap-3"></div>
+                        <div class="w-full h-px bg-slate-200"></div>
+                        <div id="trans-he" class="flex flex-wrap justify-center gap-2 sm:gap-3 text-right" dir="rtl"></div>
+                    </div>
+                </div>
+                <div id="task-2-container" class="w-full transition-all duration-500 hidden opacity-0 translate-y-4">
+                    <h3 id="task-2-title" class="text-lg sm:text-xl font-bold text-sky-600 mb-3 bg-sky-50 py-1 rounded-lg">2. השלם את המשפט</h3>
+                    <div id="sentence-options" class="flex flex-wrap justify-center content-center gap-3 sm:gap-4 w-full relative"></div>
+                </div>
+            </div>
+
+            <div id="options" class="flex flex-wrap justify-center content-center gap-3 sm:gap-4 mb-4 swipeable-container w-full relative min-h-[100px] transition-all duration-300"></div>
+        </div>
+
+        <div id="memory-screen" class="hidden flex-grow flex flex-col items-center w-full relative z-10">
+            <div id="memory-board" dir="ltr" class="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3 mb-6 w-full justify-items-center"></div>
+        </div>
+        
+        <div id="feedback" class="text-xl sm:text-2xl font-bold h-12 transition-all duration-300 flex items-center justify-center z-10 w-full shrink-0 my-2 text-center whitespace-pre-line"></div>
+
+        <div id="bonus-screen" class="hidden flex-grow flex flex-col items-center bg-yellow-50 rounded-3xl p-6 border-4 border-yellow-300 animate-bonus w-full">
+            <h2 class="text-3xl font-black text-yellow-600 mb-2 flex items-center gap-2 drop-shadow-sm">⭐ שאלת בונוס! ⭐</h2>
+            <p class="text-yellow-800 mb-8 font-medium text-lg">הקשיבו למילה ובחרו את התמונה הנכונה</p>
+            <button onclick="playBonusSound()" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-4 px-8 rounded-2xl shadow-[0_6px_0_#ca8a04] active:shadow-none active:translate-y-[6px] transition-all mb-8 mx-auto flex items-center justify-center gap-2 text-xl">
+                <span class="text-3xl">🔊</span> השמע מילה
+            </button>
+            <div id="bonus-options" class="flex flex-wrap justify-center gap-4 w-full"></div>
+        </div>
+        
+        <div id="single-score-area" class="hidden mt-auto pt-4 border-t-2 border-slate-100 flex justify-between items-center bg-white z-10 w-full shrink-0">
+            <div class="text-slate-500 font-medium">התקדמות: <span id="cards-left" class="font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">-</span></div>
+            <div class="text-xl font-bold text-slate-500 flex items-center gap-2">ניקוד: <span id="score" class="text-3xl font-black text-indigo-600 bg-indigo-50 px-4 py-1 rounded-xl">0</span></div>
+        </div>
+
+        <div id="multi-score-area" class="hidden mt-auto pt-4 border-t-2 border-slate-100 flex justify-between items-center bg-white z-10 w-full gap-2 shrink-0">
+            <div id="p1-box" class="flex-1 text-lg sm:text-xl font-bold p-2 sm:p-3 rounded-2xl border-4 border-blue-500 bg-blue-50 text-blue-700 transition-all shadow-md">
+                שחקן 1<br><span id="p1-score" class="text-3xl sm:text-4xl text-blue-600 font-black">0</span>
+            </div>
+            <div class="text-2xl font-black text-slate-300">VS</div>
+            <div id="p2-box" class="flex-1 text-lg sm:text-xl font-bold p-2 sm:p-3 rounded-2xl border-4 border-transparent bg-white text-slate-400 transition-all">
+                שחקן 2<br><span id="p2-score" class="text-3xl sm:text-4xl font-black">0</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const vocabulary = [
+            { letter: 'A', word: 'Apple', emoji: '🍎' }, { letter: 'A', word: 'Ant', emoji: '🐜' }, { letter: 'A', word: 'Airplane', emoji: '✈️' },
+            { letter: 'B', word: 'Bear', emoji: '🐻' }, { letter: 'B', word: 'Banana', emoji: '🍌' }, { letter: 'B', word: 'Ball', emoji: '🏀' },
+            { letter: 'C', word: 'Cat', emoji: '🐱' }, { letter: 'C', word: 'Car', emoji: '🚗' }, { letter: 'C', word: 'Cow', emoji: '🐄' },
+            { letter: 'D', word: 'Dog', emoji: '🐶' }, { letter: 'D', word: 'Duck', emoji: '🦆' }, { letter: 'D', word: 'Dolphin', emoji: '🐬' },
+            { letter: 'E', word: 'Elephant', emoji: '🐘' }, { letter: 'E', word: 'Egg', emoji: '🥚' },
+            { letter: 'F', word: 'Frog', emoji: '🐸' }, { letter: 'F', word: 'Fish', emoji: '🐟' },
+            { letter: 'G', word: 'Goat', emoji: '🐐' }, { letter: 'G', word: 'Ghost', emoji: '👻' },
+            { letter: 'H', word: 'Hat', emoji: '🎩' }, { letter: 'H', word: 'Horse', emoji: '🐴' },
+            { letter: 'I', word: 'Ice', emoji: '🧊' }, { letter: 'I', word: 'Iguana', emoji: '🦎' },
+            { letter: 'J', word: 'Juice', emoji: '🧃' }, { letter: 'J', word: 'Jacket', emoji: '🧥' },
+            { letter: 'K', word: 'Kangaroo', emoji: '🦘' }, { letter: 'K', word: 'Key', emoji: '🔑' },
+            { letter: 'L', word: 'Lion', emoji: '🦁' }, { letter: 'L', word: 'Lemon', emoji: '🍋' },
+            { letter: 'M', word: 'Monkey', emoji: '🐵' }, { letter: 'M', word: 'Mouse', emoji: '🐭' },
+            { letter: 'N', word: 'Nest', emoji: '🪹' }, { letter: 'N', word: 'Nose', emoji: '👃' },
+            { letter: 'O', word: 'Octopus', emoji: '🐙' }, { letter: 'O', word: 'Orange', emoji: '🍊' },
+            { letter: 'P', word: 'Pig', emoji: '🐷' }, { letter: 'P', word: 'Pizza', emoji: '🍕' },
+            { letter: 'Q', word: 'Queen', emoji: '👸' }, { letter: 'Q', word: 'Quiet', emoji: '🤫' },
+            { letter: 'R', word: 'Rabbit', emoji: '🐰' }, { letter: 'R', word: 'Rocket', emoji: '🚀' },
+            { letter: 'S', word: 'Sun', emoji: '☀️' }, { letter: 'S', word: 'Star', emoji: '⭐' },
+            { letter: 'T', word: 'Tiger', emoji: '🐯' }, { letter: 'T', word: 'Turtle', emoji: '🐢' },
+            { letter: 'U', word: 'Umbrella', emoji: '☂️' }, { letter: 'U', word: 'Unicorn', emoji: '🦄' },
+            { letter: 'V', word: 'Violin', emoji: '🎻' }, { letter: 'V', word: 'Van', emoji: '🚐' },
+            { letter: 'W', word: 'Watermelon', emoji: '🍉' }, { letter: 'W', word: 'Whale', emoji: '🐳' },
+            { letter: 'X', word: 'Xylophone', emoji: '🪗' }, { letter: 'X', word: 'X-ray', emoji: '🩻' },
+            { letter: 'Y', word: 'Yellow', emoji: '🟨' }, { letter: 'Y', word: 'Yoyo', emoji: '🪀' },
+            { letter: 'Z', word: 'Zebra', emoji: '🦓' }, { letter: 'Z', word: 'Zombie', emoji: '🧟' }
+        ];
+
+        const sentenceBank = [
+            { text: "The ___ is red.", correct: "Apple", wrongs: ["Banana", "Cat", "Sun"], emoji: "🍎", trans: { "The": "ה...", "is": "הינו/היא", "red": "אדום" } },
+            { text: "A ___ can bark.", correct: "Dog", wrongs: ["Fish", "Car", "Tree"], emoji: "🐶", trans: { "A": "...", "can": "יכול", "bark": "לנבוח" } },
+            { text: "I drive a ___.", correct: "Car", wrongs: ["Apple", "Dog", "Sun"], emoji: "🚗", trans: { "I": "אני", "drive": "נוהג ב..." } },
+            { text: "The ___ is hot.", correct: "Sun", wrongs: ["Ice", "Pig", "Moon"], emoji: "☀️", trans: { "The": "ה...", "is": "הוא", "hot": "חם" } },
+            { text: "A ___ says meow.", correct: "Cat", wrongs: ["Cow", "Dog", "Bird"], emoji: "🐱", trans: { "A": "...", "says": "אומר/ת", "meow": "מיאו" } },
+            { text: "Monkeys love to eat ___.", correct: "Banana", wrongs: ["Pizza", "Car", "Hat"], emoji: "🍌", trans: { "Monkeys": "קופים", "love": "אוהבים", "to eat": "לאכול" } },
+            { text: "I wear a ___ on my head.", correct: "Hat", wrongs: ["Shoe", "Dog", "Fish"], emoji: "🎩", trans: { "I": "אני", "wear": "חובש/לובש", "on my head": "על הראש שלי" } },
+            { text: "A ___ swims in the water.", correct: "Fish", wrongs: ["Bird", "Cat", "Car"], emoji: "🐟", trans: { "swims": "שוחה", "in the water": "במים" } },
+            { text: "I open the door with a ___.", correct: "Key", wrongs: ["Ball", "Apple", "Hat"], emoji: "🔑", trans: { "open": "פותח", "the door": "את הדלת", "with": "בעזרת/עם" } },
+            { text: "The ___ gives us milk.", correct: "Cow", wrongs: ["Dog", "Lion", "Fish"], emoji: "🐄", trans: { "gives": "נותנת", "us": "לנו", "milk": "חלב" } }
+        ];
+
+        let gameMode = ''; let availableItems = []; let currentItem = null;
+        let score = 0; let consecutiveCorrect = 0; let isTransitioning = false;
+        let eliminatedCount = 0; let preferredVoice = null; let totalItemsInDeck = 0;
+        let sentencePhase = ''; let transMatches = 0;
+        let transSelectedEn = null; let transSelectedHe = null;
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null; let isListening = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-US'; 
+            recognition.interimResults = false; 
+            recognition.maxAlternatives = 1;
+            
+            recognition.onresult = function(event) {
+                try {
+                    // FIX: Ensure correct array access for speech recognition result
+                    const transcript = event.results.transcript.trim().toLowerCase();
+                    const cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+                    handleSpeechResult(cleanTranscript);
+                } catch (e) {
+                    console.error("Speech parsing error:", e);
+                    showFeedback("תקלה בפענוח הקול. נסו שוב 🎤", "text-amber-500");
+                    stopListening();
+                }
+            };
+            
+            recognition.onerror = function(event) {
+                stopListening();
+                if(event.error === 'not-allowed') showFeedback("יש לאשר גישה למיקרופון 🎤", "text-rose-500");
+                else if(event.error === 'no-speech') showFeedback("לא שמעתי... נסו שוב 🎤", "text-amber-500");
+                else showFeedback("תקלת מיקרופון. נסו שוב.", "text-rose-500");
+            };
+            
+            recognition.onend = function() { stopListening(); };
+        }
+
+        function shuffleArray(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+            return arr;
+        }
+
+        function setBestVoice() {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length === 0) return;
+            preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google') && v.name.includes('Female')) ||
+                             voices.find(v => v.lang.startsWith('en') && v.name.includes('Google US')) ||
+                             voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+        }
+        window.speechSynthesis.onvoiceschanged = setBestVoice;
+
+        function speakText(text, isSingleLetter = false) {
+            window.speechSynthesis.cancel(); 
+            let textToSpeak = isSingleLetter ? text.toLowerCase() + "." : text;
+            if(textToSpeak.includes("___")) textToSpeak = textToSpeak.replace("___", "...");
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'en-US'; utterance.rate = 0.85; utterance.pitch = 1.1; 
+            if (!preferredVoice) setBestVoice();
+            if (preferredVoice) utterance.voice = preferredVoice;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function unlockAudio() {
+            const unlockUtterance = new SpeechSynthesisUtterance('');
+            window.speechSynthesis.speak(unlockUtterance);
+        }
+
+        function updateScore(points = 1) {
+            score += points; document.getElementById('score').innerText = score;
+            const scoreEl = document.getElementById('score');
+            scoreEl.classList.add('text-emerald-500', 'scale-110');
+            setTimeout(() => { scoreEl.classList.remove('text-emerald-500', 'scale-110'); }, 300);
+        }
+
+        function goBackToMenu() {
+            window.speechSynthesis.cancel(); 
+            if(isListening) stopListening();
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('memory-screen').classList.add('hidden');
+            document.getElementById('bonus-screen').classList.add('hidden');
+            document.getElementById('single-score-area').classList.add('hidden');
+            document.getElementById('multi-score-area').classList.add('hidden');
+            document.getElementById('back-btn').classList.add('hidden');
+            document.getElementById('sentence-tasks-area').classList.add('hidden');
+            document.getElementById('options').classList.remove('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            document.getElementById('main-title').innerText = "אנגלית בכיף 🚀";
+            document.getElementById('sub-title').innerText = "בחרו איזה משחק תרצו לשחק!";
+            document.getElementById('feedback').innerText = "";
+        }
+
+        function startGame(mode) {
+            unlockAudio(); gameMode = mode; isTransitioning = false; score = 0; consecutiveCorrect = 0;
+            document.getElementById('score').innerText = score; document.getElementById('feedback').innerText = "";
+            document.getElementById('start-screen').classList.add('hidden'); document.getElementById('back-btn').classList.remove('hidden');
+            const actionBtn = document.getElementById('action-btn');
+            actionBtn.classList.remove('hidden', 'listening', 'bg-blue-500', 'bg-emerald-500');
+            
+            if(mode === 'speaking') {
+                if (!SpeechRecognition) { alert("נדרש מיקרופון לדפדפן זה."); goBackToMenu(); return; }
+                actionBtn.classList.add('bg-blue-500'); document.getElementById('action-icon').innerText = "🎤"; document.getElementById('action-text').innerText = "לחצו ודברו";
+            } else {
+                actionBtn.classList.add('bg-emerald-500'); document.getElementById('action-icon').innerText = "🔊"; document.getElementById('action-text').innerText = "השמע שוב";
+            }
+
+            if (mode === 'memory') {
+                document.getElementById('main-title').innerText = "משחק הזיכרון 🧠"; document.getElementById('sub-title').innerText = "הביטו בזוגות, כי תכף הם יתערבבו!";
+                document.getElementById('memory-screen').classList.remove('hidden'); document.getElementById('multi-score-area').classList.remove('hidden');
+                document.getElementById('progress-container').classList.add('hidden'); startMemoryGame();
+            } else {
+                document.getElementById('game-screen').classList.remove('hidden'); document.getElementById('single-score-area').classList.remove('hidden');
+                document.getElementById('progress-container').classList.remove('hidden'); document.getElementById('progress-bar').style.width = '0%';
+                
+                if (mode === 'letters') { document.getElementById('main-title').innerText = "משחק אותיות 🅰️"; document.getElementById('sub-title').innerText = "הקשיבו לאות ובחרו אותה מבין האפשרויות."; } 
+                else if (mode === 'sounds') { document.getElementById('main-title').innerText = "צליל פותח 🍎"; document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו באיזו אות היא מתחילה."; } 
+                else if (mode === 'missing') { document.getElementById('main-title').innerText = "השלם מילה 🧩"; document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו את האות שחסרה."; } 
+                else if (mode === 'elimination') { document.getElementById('main-title').innerText = "משחק הניפוי 🧹"; document.getElementById('sub-title').innerText = "החליקו וזרקו החוצה את כל האותיות השגויות!"; } 
+                else if (mode === 'sentences') {
+                    if (!SpeechRecognition) { alert("השלב דורש מיקרופון. נסו בכרום."); goBackToMenu(); return; }
+                    document.getElementById('main-title').innerText = "השלם משפט PRO 📝"; document.getElementById('sub-title').innerText = "בצעו את המשימות שלב אחר שלב!";
+                } 
+                else if (mode === 'speaking') { document.getElementById('main-title').innerText = "אתגר הדיבור 🎤"; document.getElementById('sub-title').innerText = "לחצו על המיקרופון ואמרו את המילה באנגלית!"; }
+                initDeck(); generateRound();
+            }
+        }
+
+        function initDeck() {
+            if (gameMode === 'sentences') availableItems = shuffleArray([...sentenceBank]);
+            else availableItems = shuffleArray([...vocabulary]);
+            totalItemsInDeck = availableItems.length;
+        }
+
+        function getNextItem() {
+            if (availableItems.length === 0) { initDeck(); showFeedback("סיימנו סבב! מתחילים שוב 🔄", "text-indigo-500"); }
+            return availableItems.pop();
+        }
+
+        function handleMainAction() {
+            if(gameMode === 'speaking' || (gameMode === 'sentences' && sentencePhase === 'speak')) toggleListening();
+            else playSound();
+        }
+
+        function playSound() {
+            if (!currentItem) return;
+            if (gameMode === 'letters' || gameMode === 'elimination') speakText(currentItem.letter, true); 
+            else if (gameMode === 'sentences') speakText(currentItem.text, false);
+            else speakText(currentItem.word, false);
+        }
+
+        function renderVisualDisplay() {
+            const display = document.getElementById('visual-display'); display.innerHTML = '';
+            if (gameMode === 'missing') {
+                display.innerHTML = `<div class="text-7xl sm:text-8xl mb-2 drop-shadow-md">${currentItem.emoji}</div><div dir="ltr" class="text-4xl sm:text-5xl font-mono font-bold tracking-widest text-slate-700 bg-slate-100 py-3 px-6 rounded-2xl border-2 border-slate-200 shadow-inner flex items-center justify-center mx-auto"><span id="missing-letter-spot" class="text-teal-500 border-b-4 border-teal-500 inline-block text-center min-w-[1.2ch] pb-1">_</span><span id="word-remainder" class="pb-1">${currentItem.word.substring(1).toLowerCase()}</span></div>`;
+            } else if (gameMode === 'sentences') {
+                display.innerHTML = `<div class="text-5xl mb-2 drop-shadow-sm">${currentItem.emoji}</div><div dir="ltr" id="sentence-text" class="text-2xl sm:text-3xl font-bold text-slate-700 bg-white py-4 px-6 rounded-2xl border-2 border-sky-200 shadow-md text-center max-w-lg transition-all">${currentItem.text}</div>`;
+            } else if (gameMode === 'speaking') {
+                display.innerHTML = `<div class="text-8xl sm:text-9xl mb-4 drop-shadow-lg">${currentItem.emoji}</div><div dir="ltr" class="text-4xl sm:text-5xl font-black text-pink-600 tracking-wide">${currentItem.word}</div>`;
+            }
+        }
+
+        function startSentencePhase() {
+            sentencePhase = 'translate'; transMatches = 0; transSelectedEn = null; transSelectedHe = null;
+            document.getElementById('options').classList.add('hidden');
+            const tasksArea = document.getElementById('sentence-tasks-area');
+            const task1Container = document.getElementById('task-1-container');
+            const task2Container = document.getElementById('task-2-container');
+            tasksArea.classList.remove('hidden'); tasksArea.classList.add('flex');
+            task1Container.classList.remove('opacity-50', 'pointer-events-none');
+            task2Container.classList.add('hidden', 'opacity-0', 'translate-y-4');
+            
+            const transEnContainer = document.getElementById('trans-en'); const transHeContainer = document.getElementById('trans-he');
+            transEnContainer.innerHTML = ''; transHeContainer.innerHTML = '';
+
+            let enKeys = shuffleArray(Object.keys(currentItem.trans)); let heVals = shuffleArray(Object.values(currentItem.trans));
+            enKeys.forEach(enWord => {
+                const btn = document.createElement('button'); btn.dir = 'ltr';
+                btn.className = 'px-4 py-2 text-lg font-bold text-slate-600 bg-white border-2 border-slate-300 rounded-xl shadow-sm match-btn active:scale-95';
+                btn.innerText = enWord; btn.onclick = () => selectTranslation('en', enWord, btn);
+                transEnContainer.appendChild(btn);
+            });
+            heVals.forEach(heWord => {
+                const btn = document.createElement('button'); btn.dir = 'rtl';
+                btn.className = 'px-4 py-2 text-lg font-bold text-slate-600 bg-white border-2 border-slate-300 rounded-xl shadow-sm match-btn active:scale-95';
+                btn.innerText = heWord; btn.onclick = () => selectTranslation('he', heWord, btn);
+                transHeContainer.appendChild(btn);
+            });
+            tasksArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function selectTranslation(type, word, btnElement) {
+            if (isTransitioning) return;
+            if (type === 'en') {
+                if (transSelectedEn) transSelectedEn.el.classList.remove('match-selected');
+                transSelectedEn = { word: word, el: btnElement }; btnElement.classList.add('match-selected');
+            } else {
+                if (transSelectedHe) transSelectedHe.el.classList.remove('match-selected');
+                transSelectedHe = { word: word, el: btnElement }; btnElement.classList.add('match-selected');
+            }
+            if (transSelectedEn && transSelectedHe) checkTranslationMatch();
+        }
+
+        function checkTranslationMatch() {
+            isTransitioning = true;
+            let enWord = transSelectedEn.word; let heWord = transSelectedHe.word;
+            let enEl = transSelectedEn.el; let heEl = transSelectedHe.el;
+
+            if (currentItem.trans[enWord] === heWord) {
+                enEl.classList.remove('match-selected'); heEl.classList.remove('match-selected');
+                enEl.classList.add('match-correct'); heEl.classList.add('match-correct');
+                transMatches++; updateScore(1); 
+                transSelectedEn = null; transSelectedHe = null; isTransitioning = false;
+
+                if (transMatches === Object.keys(currentItem.trans).length) {
+                    isTransitioning = true;
+                    const task1Container = document.getElementById('task-1-container'); const task2Container = document.getElementById('task-2-container');
+                    task1Container.classList.add('opacity-50', 'pointer-events-none');
+                    setTimeout(() => {
+                        sentencePhase = 'choose'; renderSentenceOptions(); task2Container.classList.remove('hidden');
+                        setTimeout(() => {
+                            task2Container.classList.remove('opacity-0', 'translate-y-4');
+                            task2Container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            isTransitioning = false;
+                        }, 50);
+                    }, 500);
+                }
+            } else {
+                enEl.classList.remove('match-selected'); heEl.classList.remove('match-selected');
+                enEl.classList.add('border-rose-400', 'bg-rose-100', 'animate-shake'); heEl.classList.add('border-rose-400', 'bg-rose-100', 'animate-shake');
+                setTimeout(() => {
+                    enEl.classList.remove('border-rose-400', 'bg-rose-100', 'animate-shake'); heEl.classList.remove('border-rose-400', 'bg-rose-100', 'animate-shake');
+                    transSelectedEn = null; transSelectedHe = null; isTransitioning = false;
+                }, 600);
+            }
+        }
+
+        function renderSentenceOptions() {
+            const optionsDiv = document.getElementById('sentence-options'); optionsDiv.innerHTML = "";
+            let finalOptions = shuffleArray([currentItem.correct, ...currentItem.wrongs]);
+            finalOptions.forEach(opt => {
+                const btn = document.createElement('button'); btn.dir = "ltr"; btn.innerText = opt; 
+                btn.className = 'px-5 py-3 text-xl sm:text-2xl font-bold text-slate-700 bg-white border-4 border-slate-200 rounded-2xl shadow-[0_6px_0_#e2e8f0] hover:bg-sky-50 active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center min-w-[100px]';
+                btn.onclick = (e) => checkAnswer(opt, currentItem.correct, e.target);
+                optionsDiv.appendChild(btn);
+            });
+        }
+
+        function setupSentenceSpeakPhase() {
+            sentencePhase = 'speak';
+            document.getElementById('task-2-container').classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('sub-title').innerText = "3. אחרון! לחצו על המיקרופון ואמרו את המילה.";
+            const actionBtn = document.getElementById('action-btn');
+            actionBtn.classList.remove('bg-emerald-500'); actionBtn.classList.add('bg-blue-500');
+            document.getElementById('action-icon').innerText = "🎤"; document.getElementById('action-text').innerText = "לחצו ודברו";
+            document.getElementById('visual-display').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function generateRound() {
+            isTransitioning = false; eliminatedCount = 0; 
+            
+            if (consecutiveCorrect >= 5 && !['missing', 'speaking', 'memory', 'sentences'].includes(gameMode)) {
+                consecutiveCorrect = 0; startBonusRound(); return;
+            }
+
+            document.getElementById('bonus-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            if (gameMode !== 'sentences') { document.getElementById('sentence-tasks-area').classList.add('hidden'); document.getElementById('options').classList.remove('hidden'); }
+            document.getElementById('feedback').innerText = ""; document.getElementById('feedback').className = "text-xl sm:text-2xl font-bold h-12 transition-all duration-300 opacity-0 flex items-center justify-center";
+            
+            currentItem = getNextItem(); renderVisualDisplay();
+
+            document.getElementById('cards-left').innerText = availableItems.length + 1;
+            const progressPercentage = ((totalItemsInDeck - availableItems.length - 1) / totalItemsInDeck) * 100;
+            document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+            
+            const optionsDiv = document.getElementById('options'); optionsDiv.innerHTML = "";
+
+            if (gameMode === 'speaking') {
+                optionsDiv.innerHTML = `<div class="text-slate-400 text-lg">לחצו על המיקרופון ואמרו את המילה כדי לעבור לשלב הבא!</div>`;
+                setTimeout(playSound, 400); return; 
+            } else if (gameMode === 'sentences') {
+                document.getElementById('action-btn').classList.add('bg-emerald-500'); document.getElementById('action-btn').classList.remove('bg-blue-500');
+                document.getElementById('action-icon').innerText = "🔊"; document.getElementById('action-text').innerText = "השמע משפט";
+                startSentencePhase(); setTimeout(playSound, 400); return;
+            }
+
+            let correctAns = currentItem.letter;
+            let wrongCount = gameMode === 'elimination' ? 12 : 3;
+            let optionsList = [currentItem.letter, ...getRandomWrongLetters(currentItem.letter, wrongCount)];
+            let finalOptions = optionsList.map(opt => { return gameMode === 'missing' ? opt.toUpperCase() : (Math.random() > 0.5 ? opt.toUpperCase() : opt.toLowerCase()); });
+            finalOptions = shuffleArray(finalOptions);
+            
+            finalOptions.forEach(opt => {
+                const btn = document.createElement('button'); btn.dir = "ltr"; btn.innerText = opt; 
+                if (gameMode === 'elimination') {
+                    btn.className = 'w-16 h-16 sm:w-20 sm:h-20 text-3xl font-bold text-slate-700 bg-white border-4 border-slate-200 rounded-2xl shadow-sm hover:bg-rose-50 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none';
+                    attachSwipeEvents(btn, opt, correctAns); 
+                } else {
+                    btn.className = 'w-20 h-20 sm:w-24 sm:h-24 text-4xl font-bold text-slate-700 bg-white border-4 border-slate-200 rounded-2xl shadow-[0_6px_0_#e2e8f0] hover:bg-indigo-50 active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center';
+                    btn.onclick = (e) => checkAnswer(opt, correctAns, e.target);
+                }
+                optionsDiv.appendChild(btn);
+            });
+            setTimeout(playSound, 400); 
+        }
+
+        function showFeedback(text, colorClass) {
+            const feedbackDiv = document.getElementById('feedback'); feedbackDiv.classList.remove('opacity-0');
+            feedbackDiv.innerText = text; feedbackDiv.className = `text-xl sm:text-2xl font-bold h-12 flex flex-col items-center justify-center animate-pop ${colorClass} w-full text-center`;
+        }
+
+        function checkAnswer(selected, correct, btnElement) {
+            if (isTransitioning) return; 
+            if (selected.toUpperCase() === correct.toUpperCase()) {
+                isTransitioning = true;
+                btnElement.classList.add('border-emerald-500', 'bg-emerald-100', 'text-emerald-700', 'translate-y-[2px]');
+                
+                if (gameMode === 'missing') {
+                    const wordSpan = document.getElementById('missing-letter-spot');
+                    wordSpan.innerText = correct.toUpperCase(); wordSpan.classList.remove('text-teal-500', 'border-b-4', 'border-teal-500'); wordSpan.classList.add('text-emerald-500', 'animate-pop');
+                } else if (gameMode === 'sentences') {
+                    const sentDiv = document.getElementById('sentence-text');
+                    sentDiv.innerHTML = currentItem.text.replace("___", `<span class="text-emerald-500 underline decoration-4 underline-offset-4">${correct}</span>`);
+                    sentDiv.classList.replace('border-sky-200', 'border-emerald-400'); sentDiv.classList.add('bg-emerald-50', 'animate-pop');
+                    speakText(currentItem.text.replace("___", correct), false); 
+                }
+
+                showFeedback("נכון מאוד! 🎉", "text-emerald-600"); updateScore(1);
+                
+                if (gameMode === 'sentences') { setTimeout(() => { isTransitioning = false; setupSentenceSpeakPhase(); }, 2000); } 
+                else { consecutiveCorrect++; setTimeout(generateRound, 1500); }
+            } else {
+                showFeedback("טעות, נסו שוב! ❌", "text-rose-500"); consecutiveCorrect = 0; 
+                btnElement.classList.add('border-rose-200', 'bg-rose-50', 'text-slate-300', 'opacity-60', 'cursor-not-allowed', 'shadow-none', 'translate-y-[6px]');
+                btnElement.onclick = null; playSound(); 
+            }
+        }
+
+        // ==========================================
+        //  דיבור (Speech), החלקות (Swipe) וזיכרון (Memory)
+        // ==========================================
+        function toggleListening() { if (!recognition) return; if (isListening) stopListening(); else startListening(); }
+        function startListening() {
+            try { recognition.start(); isListening = true; document.getElementById('action-btn').classList.add('listening'); document.getElementById('action-text').innerText = "🔴 מקשיב..."; showFeedback("דברו עכשיו...", "text-pink-500"); } catch(e) {}
+        }
+        function stopListening() {
+            if(recognition) recognition.stop(); isListening = false; document.getElementById('action-btn').classList.remove('listening'); document.getElementById('action-text').innerText = "לחצו ודברו";
+        }
+        function handleSpeechResult(transcript) {
+            if (isTransitioning) return;
+            const targetWord = (gameMode === 'sentences') ? currentItem.correct.toLowerCase() : currentItem.word.toLowerCase();
+            if (transcript === targetWord || transcript.includes(" " + targetWord) || transcript.includes(targetWord + " ")) {
+                isTransitioning = true; showFeedback(`מצוין! שמעתי אותך אומר "${targetWord}" 🏆`, "text-emerald-600");
+                updateScore(1); consecutiveCorrect++;
+                const wordDisplay = document.querySelector('#visual-display div:nth-child(2)'); if(wordDisplay) wordDisplay.classList.add('text-emerald-500', 'animate-pop');
+                setTimeout(generateRound, 2000);
+            } else { showFeedback(`שמעתי: "${transcript}"\n נסו להגיד "${targetWord}" ברור יותר 🎤`, "text-rose-500"); consecutiveCorrect = 0; }
+        }
+
+        function attachSwipeEvents(btn, selectedOption, correctOption) {
+            let isDragging = false; let startX = 0, startY = 0;
+            const handleDragStart = (e) => {
+                if (isTransitioning || btn.classList.contains('eliminated')) return;
+                isDragging = true; btn.style.transition = 'none'; btn.style.zIndex = '50'; 
+                if (e.type === 'touchstart') { startX = e.touches.clientX; startY = e.touches.clientY; } else { startX = e.clientX; startY = e.clientY; }
+            };
+            const handleDragMove = (e) => {
+                if (!isDragging) return; e.preventDefault(); 
+                let currentX, currentY;
+                if (e.type === 'touchmove') { currentX = e.touches.clientX - startX; currentY = e.touches.clientY - startY; } else { currentX = e.clientX - startX; currentY = e.clientY - startY; }
+                btn.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${currentX * 0.05}deg)`;
+                btn.style.opacity = Math.max(0.4, 1 - (Math.abs(currentX) + Math.abs(currentY)) / 300);
+                btn.dataset.cx = currentX; btn.dataset.cy = currentY;
+            };
+            const handleDragEnd = () => {
+                if (!isDragging) return; isDragging = false;
+                let cx = parseFloat(btn.dataset.cx || 0); let cy = parseFloat(btn.dataset.cy || 0); btn.style.zIndex = '1';
+                if (Math.sqrt(cx * cx + cy * cy) > 50) processElimination(btn, selectedOption, correctOption, cx, cy);
+                else { btn.style.transition = 'all 0.3s'; btn.style.transform = 'translate(0px, 0px) rotate(0deg)'; btn.style.opacity = '1'; }
+                btn.dataset.cx = 0; btn.dataset.cy = 0;
+            };
+            btn.addEventListener('touchstart', handleDragStart, {passive: false}); btn.addEventListener('touchmove', handleDragMove, {passive: false}); btn.addEventListener('touchend', handleDragEnd);
+            btn.addEventListener('mousedown', handleDragStart); window.addEventListener('mousemove', handleDragMove); window.addEventListener('mouseup', handleDragEnd);
+        }
+        function processElimination(btn, selectedOption, correctOption, dirX, dirY) {
+            if (selectedOption.toUpperCase() !== correctOption.toUpperCase()) {
+                btn.style.transition = 'all 0.4s ease-out'; btn.style.transform = `translate(${dirX * 3}px, ${dirY * 3}px) scale(0) rotate(${dirX}deg)`; btn.style.opacity = '0'; btn.classList.add('eliminated', 'pointer-events-none', 'shrink-away');
+                eliminatedCount++; setTimeout(() => { btn.style.display = 'none'; }, 400);
+                if (eliminatedCount === 12) {
+                    isTransitioning = true;
+                    const buttons = document.getElementById('options').children;
+                    for(let b of buttons) { if (!b.classList.contains('eliminated')) { b.style.transition = 'all 0.5s'; b.style.transform = 'translate(0,0) scale(1.3)'; b.className = 'w-20 h-20 sm:w-24 sm:h-24 text-4xl font-bold rounded-2xl flex items-center justify-center border-4 border-emerald-500 bg-emerald-100 text-emerald-700 shadow-[0_4px_0_#10b981] mx-auto'; } }
+                    showFeedback("מעולה! נשארה רק האות הנכונה! 🎉", "text-emerald-600"); updateScore(1); consecutiveCorrect++; setTimeout(generateRound, 2000);
+                }
+            } else {
+                isTransitioning = true; btn.style.transition = 'all 0.3s'; btn.style.transform = 'translate(0,0) scale(1)'; btn.style.opacity = '1';
+                btn.className = 'w-16 h-16 sm:w-20 sm:h-20 text-3xl font-bold rounded-2xl flex items-center justify-center border-4 border-rose-500 bg-rose-100 text-rose-700 mx-auto';
+                showFeedback("פסול! זרקתם את האות הנכונה ❌", "text-rose-600"); consecutiveCorrect = 0; playSound(); setTimeout(generateRound, 2500); 
+            }
+        }
+
+        let memoryCards = []; let flippedMemoryCards = []; let p1Score = 0; let p2Score = 0; let currentPlayer = 1; let memoryPhase = 'intro';
+        function startMemoryGame() {
+            p1Score = 0; p2Score = 0; currentPlayer = 1; updateMemoryScoreUI();
+            let selectedItems = shuffleArray(vocabulary).slice(0,10); memoryCards = [];
+            selectedItems.forEach((item, index) => {
+                let card1 = { id: index*2, pairId: item.letter, display: item.letter.toUpperCase(), isLetter: true, isFlipped: true, isMatched: false, tts: item.letter };
+                let isLower = Math.random() > 0.5;
+                let card2 = { id: index*2+1, pairId: item.letter, display: isLower ? item.letter.toLowerCase() : item.emoji, isLetter: isLower, isFlipped: true, isMatched: false, tts: isLower ? item.letter : item.word };
+                memoryCards.push(card1, card2);
+            });
+            memoryPhase = 'intro'; renderMemoryBoard();
+            setTimeout(() => {
+                if (gameMode !== 'memory') return;
+                memoryCards.forEach(c => c.isFlipped = false); renderMemoryBoard(); document.getElementById('sub-title').innerText = "מערבב...";
+                setTimeout(() => { if (gameMode !== 'memory') return; memoryCards = shuffleArray(memoryCards); memoryPhase = 'playing'; document.getElementById('sub-title').innerText = "מתחילים! תור שחקן 1."; renderMemoryBoard(); }, 800);
+            }, 6000);
+        }
+        function renderMemoryBoard() {
+            const board = document.getElementById('memory-board'); board.innerHTML = "";
+            memoryCards.forEach((card, index) => {
+                const btn = document.createElement('button');
+                let baseClasses = 'w-16 h-16 sm:w-20 sm:h-20 sm:text-4xl text-3xl font-bold rounded-2xl flex items-center justify-center border-4 transition-all card-flip shadow-[0_4px_0_rgba(0,0,0,0.1)] ';
+                if (card.isMatched) { btn.className = baseClasses + 'bg-slate-100 border-slate-200 text-slate-300 opacity-50 cursor-default'; btn.innerText = card.display; } 
+                else if (card.isFlipped) { btn.className = baseClasses + 'bg-white border-indigo-300 text-indigo-700'; btn.innerText = card.display; } 
+                else { btn.className = baseClasses + 'card-face-down border-indigo-200 cursor-pointer hover:border-indigo-400'; btn.innerText = '?'; }
+                if (memoryPhase === 'playing' && !card.isMatched && !card.isFlipped) btn.onclick = () => handleMemoryClick(index);
+                board.appendChild(btn);
+            });
+        }
+        function handleMemoryClick(index) {
+            if (isTransitioning || memoryPhase !== 'playing') return;
+            let card = memoryCards[index]; if (card.isFlipped || card.isMatched) return;
+            card.isFlipped = true; flippedMemoryCards.push({ card, index }); renderMemoryBoard(); speakText(card.tts, card.isLetter);
+            if (flippedMemoryCards.length === 2) {
+                isTransitioning = true; let [first, second] = flippedMemoryCards;
+                if (first.card.pairId === second.card.pairId) {
+                    showFeedback("זוג מושלם! 🎉", "text-emerald-500");
+                    if (currentPlayer === 1) p1Score++; else p2Score++; updateMemoryScoreUI();
+                    setTimeout(() => { first.card.isMatched = true; second.card.isMatched = true; flippedMemoryCards = []; isTransitioning = false; renderMemoryBoard(); checkMemoryWin(); }, 1200);
+                } else {
+                    showFeedback("לא נורא, תור הבא...", "text-rose-400");
+                    setTimeout(() => { first.card.isFlipped = false; second.card.isFlipped = false; flippedMemoryCards = []; currentPlayer = currentPlayer === 1 ? 2 : 1; updateMemoryScoreUI(); isTransitioning = false; renderMemoryBoard(); }, 1500);
+                }
+            }
+        }
+        function updateMemoryScoreUI() {
+            document.getElementById('p1-score').innerText = p1Score; document.getElementById('p2-score').innerText = p2Score;
+            const p1Box = document.getElementById('p1-box'); const p2Box = document.getElementById('p2-box');
+            if (currentPlayer === 1) { p1Box.className = "flex-1 text-xl font-bold p-3 rounded-2xl border-4 border-blue-500 bg-blue-50 text-blue-700 shadow-md transform scale-105"; p2Box.className = "flex-1 text-xl font-bold p-3 rounded-2xl border-4 border-transparent bg-white text-slate-400 opacity-70"; if(memoryPhase === 'playing') document.getElementById('sub-title').innerText = "תור שחקן 1 (כחול)"; } 
+            else { p2Box.className = "flex-1 text-xl font-bold p-3 rounded-2xl border-4 border-rose-500 bg-rose-50 text-rose-700 shadow-md transform scale-105"; p1Box.className = "flex-1 text-xl font-bold p-3 rounded-2xl border-4 border-transparent bg-white text-slate-400 opacity-70"; if(memoryPhase === 'playing') document.getElementById('sub-title').innerText = "תור שחקן 2 (אדום)"; }
+        }
+        function checkMemoryWin() {
+            if (memoryCards.every(c => c.isMatched)) { memoryPhase = 'done'; let winMsg = p1Score > p2Score ? "שחקן 1 ניצח! 🏆" : (p2Score > p1Score ? "שחקן 2 ניצח! 🏆" : "תיקו מכובד! 🤝"); showFeedback(winMsg, "text-yellow-600"); document.getElementById('sub-title').innerText = "לחצו על הבית לחזור."; } else document.getElementById('feedback').innerText = "";
+        }
+        function startBonusRound() { document.getElementById('game-screen').classList.add('hidden'); document.getElementById('bonus-screen').classList.remove('hidden'); currentItem = vocabulary[Math.floor(Math.random() * vocabulary.length)]; let wrongEmojis = shuffleArray(vocabulary.map(v => v.emoji).filter(e => e !== currentItem.emoji)).slice(0, 3); let emojiOptions = shuffleArray([currentItem.emoji, ...wrongEmojis]); const bonusOptionsDiv = document.getElementById('bonus-options'); bonusOptionsDiv.innerHTML = ""; emojiOptions.forEach(emoji => { const btn = document.createElement('button'); btn.className = 'w-24 h-24 text-5xl bg-white border-4 border-yellow-200 rounded-3xl shadow-[0_6px_0_#fef08a] active:translate-y-[6px] active:shadow-none transition-all'; btn.innerText = emoji; btn.onclick = (e) => checkBonusAnswer(emoji, currentItem.emoji, e.target); bonusOptionsDiv.appendChild(btn); }); setTimeout(playBonusSound, 500); }
+        function checkBonusAnswer(selectedEmoji, correctEmoji, btnElement) { if (isTransitioning) return; isTransitioning = true; if (selectedEmoji === correctEmoji) { btnElement.className = 'w-24 h-24 text-5xl bg-emerald-100 border-4 border-emerald-500 rounded-3xl shadow-[0_4px_0_#10b981] translate-y-[2px] transition-all animate-pop z-10'; updateScore(3); showFeedback("בונוס מושלם! +3 נקודות 🎁", "text-yellow-600"); setTimeout(generateRound, 2000); } else { btnElement.className = 'w-24 h-24 text-5xl bg-rose-50 border-4 border-rose-300 rounded-3xl opacity-50 translate-y-[6px] shadow-none'; showFeedback("אוי, לא נורא! ממשיכים 🚀", "text-slate-500"); setTimeout(generateRound, 2000); } }
+    </script>
+</body>
+</html>
