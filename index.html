@@ -373,22 +373,86 @@
 
         function setBestVoice() {
             const voices = window.speechSynthesis.getVoices();
-            if (voices.length === 0) return;
-            preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google') && v.name.includes('Female')) ||
-                             voices.find(v => v.lang.startsWith('en') && v.name.includes('Google US')) ||
-                             voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+            if (voices.length === 0) {
+                console.log("No voices available yet");
+                return;
+            }
+
+            console.log("Available voices:", voices.length);
+
+            // Priority list of high-quality female voices
+            const voicePreferences = [
+                // Google voices (highest quality)
+                v => v.lang === 'en-US' && v.name.includes('Google US English Female'),
+                v => v.lang === 'en-US' && v.name.includes('Google US English') && (v.name.includes('Female') || v.name.includes('female')),
+
+                // Apple voices (macOS/iOS)
+                v => v.lang === 'en-US' && (v.name === 'Moira' || v.name === 'Victoria' || v.name === 'Samantha'),
+
+                // Microsoft voices (Windows)
+                v => v.lang === 'en-US' && (v.name.includes('Zira') || v.name.includes('Cortana') || v.name.includes('Eva')),
+
+                // Amazon voices
+                v => v.lang === 'en-US' && (v.name.includes('Joanna') || v.name.includes('Emma') || v.name.includes('Amy')),
+
+                // Generic English US female voices
+                v => v.lang === 'en-US' && (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Woman') || v.name.includes('woman')),
+
+                // Fallback: any English US voice
+                v => v.lang === 'en-US',
+
+                // Final fallback: any English voice
+                v => v.lang && v.lang.startsWith('en')
+            ];
+
+            // Find the best voice using our preference list
+            for (const voiceMatcher of voicePreferences) {
+                const foundVoice = voices.find(voiceMatcher);
+                if (foundVoice) {
+                    preferredVoice = foundVoice;
+                    console.log("Selected voice:", foundVoice.name, "(" + foundVoice.lang + ")");
+                    return;
+                }
+            }
+
+            // If nothing found, just use the first English voice
+            preferredVoice = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+            console.log("Using fallback voice:", preferredVoice.name);
         }
+
+        // Load voices when available
         window.speechSynthesis.onvoiceschanged = setBestVoice;
 
+        // Try to load voices immediately (some browsers load them synchronously)
+        setTimeout(setBestVoice, 100);
+
         function speakText(text, isSingleLetter = false) {
-            window.speechSynthesis.cancel(); 
+            window.speechSynthesis.cancel();
+
             let textToSpeak = isSingleLetter ? text.toLowerCase() + "." : text;
             if(textToSpeak.includes("___")) textToSpeak = textToSpeak.replace("___", "...");
+
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            utterance.lang = 'en-US'; utterance.rate = 0.85; utterance.pitch = 1.1; 
+            utterance.lang = 'en-US';
+
+            // Optimize speech parameters for natural sound
+            if (isSingleLetter) {
+                // For letters: slower, clearer pronunciation
+                utterance.rate = 0.8;      // Slower for clarity
+                utterance.pitch = 1.0;     // Natural pitch
+                utterance.volume = 1.0;    // Full volume
+            } else {
+                // For words/sentences: natural, conversational speed
+                utterance.rate = 0.9;      // Slightly slower than normal for clarity
+                utterance.pitch = 1.0;     // Natural pitch
+                utterance.volume = 1.0;    // Full volume
+            }
+
             if (!preferredVoice) setBestVoice();
             if (preferredVoice) utterance.voice = preferredVoice;
+
             window.speechSynthesis.speak(utterance);
+            console.log("Speaking:", textToSpeak, "with voice:", preferredVoice?.name || "default");
         }
 
         function unlockAudio() {
