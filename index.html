@@ -13,15 +13,17 @@
         .animate-pulse-soft { animation: pulse-soft 2s infinite; }
 
         @keyframes mic-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), inset 0 0 0 0 rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0), inset 0 0 10px 5px rgba(239, 68, 68, 0.3); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 0 0 0 rgba(239, 68, 68, 0); }
         }
         .listening {
-            animation: mic-pulse 1.5s infinite;
-            background-color: #ef4444 !important; 
+            animation: mic-pulse 1.2s infinite;
+            background-color: #dc2626 !important;
             color: white !important;
-            border-color: #dc2626 !important;
+            border-color: #b91c1c !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5) !important;
         }
 
         @keyframes slide-up { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
@@ -114,8 +116,8 @@
         <div id="game-screen" class="hidden flex-grow flex flex-col items-center w-full">
             <div id="visual-display" class="flex flex-col items-center justify-center mb-4 animate-slide-up w-full min-h-[100px] flex-shrink-0"></div>
 
-            <button id="action-btn" onclick="handleMainAction()" class="animate-pulse-soft bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-8 rounded-2xl shadow-[0_6px_0_#059669] active:shadow-none active:translate-y-[6px] transition-all mb-4 mx-auto flex items-center justify-center gap-3 text-xl w-full sm:w-auto relative z-10 flex-shrink-0">
-                <span id="action-icon" class="text-3xl">🔊</span> <span id="action-text">השמע שוב</span>
+            <button id="action-btn" onclick="handleMainAction()" class="animate-pulse-soft bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 sm:py-5 sm:px-10 rounded-3xl shadow-[0_6px_0_#059669] active:shadow-none active:translate-y-[6px] transition-all mb-4 mx-auto flex items-center justify-center gap-3 text-lg sm:text-xl w-full sm:w-auto relative z-10 flex-shrink-0 min-h-[56px] sm:min-h-[60px]">
+                <span id="action-icon" class="text-4xl sm:text-3xl">🔊</span> <span id="action-text" class="leading-tight">השמע שוב</span>
             </button>
             
             <div id="sentence-tasks-area" class="w-full flex-col hidden flex-grow justify-start">
@@ -218,35 +220,141 @@
         let transSelectedEn = null; let transSelectedHe = null;
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null; let isListening = false;
+        let recognition = null; let isListening = false; let recognitionRetries = 0; const MAX_RETRIES = 2;
+        let recognitionTimeout = null; let isMicrophonePermissionDenied = false;
 
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; 
-            recognition.interimResults = false; 
-            recognition.maxAlternatives = 1;
-            
-            recognition.onresult = function(event) {
-                try {
-                    // FIX: Ensure correct array access for speech recognition result
-                    const transcript = event.results.transcript.trim().toLowerCase();
-                    const cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
-                    handleSpeechResult(cleanTranscript);
-                } catch (e) {
-                    console.error("Speech parsing error:", e);
-                    showFeedback("תקלה בפענוח הקול. נסו שוב 🎤", "text-amber-500");
+        // Check for speech recognition support at startup
+        function initSpeechRecognition() {
+            if (!SpeechRecognition) {
+                console.warn("Speech Recognition API not supported in this browser");
+                return false;
+            }
+
+            try {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'en-US';
+                recognition.interimResults = true; // Show interim results for better feedback
+                recognition.maxAlternatives = 3; // Get multiple alternatives
+                recognition.continuous = false;
+
+                recognition.onstart = function() {
+                    console.log("Speech recognition started");
+                    recognitionRetries = 0;
+                    // Set timeout for 6 seconds of silence
+                    recognitionTimeout = setTimeout(() => {
+                        if (isListening && recognitionRetries < MAX_RETRIES) {
+                            stopListening();
+                            showFeedback("לא שמעתי... מנסים שוב 🎤", "text-amber-500");
+                            setTimeout(() => startListening(), 500);
+                            recognitionRetries++;
+                        } else if (isListening) {
+                            stopListening();
+                            showFeedback("בואו ננסה משהו אחר 🎮", "text-rose-500");
+                        }
+                    }, 6000);
+                };
+
+                recognition.onresult = function(event) {
+                    try {
+                        clearTimeout(recognitionTimeout);
+                        let transcript = '';
+
+                        // Get the best result
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const isFinal = event.results[i].isFinal;
+                            const transcriptPart = event.results[i][0].transcript;
+
+                            if (isFinal) {
+                                transcript = transcriptPart;
+                                break;
+                            }
+                        }
+
+                        if (!transcript) return; // Wait for final result
+
+                        // Normalize transcript
+                        transcript = transcript.trim().toLowerCase();
+                        const cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+
+                        console.log("Recognized:", cleanTranscript);
+
+                        if (cleanTranscript.length > 0) {
+                            handleSpeechResult(cleanTranscript);
+                        }
+                    } catch (e) {
+                        console.error("Speech parsing error:", e);
+                        showFeedback("שגיאה בעיבוד הקול 🎤", "text-amber-500");
+                        stopListening();
+                    }
+                };
+
+                recognition.onerror = function(event) {
+                    clearTimeout(recognitionTimeout);
+                    console.error("Speech recognition error:", event.error);
                     stopListening();
-                }
-            };
-            
-            recognition.onerror = function(event) {
-                stopListening();
-                if(event.error === 'not-allowed') showFeedback("יש לאשר גישה למיקרופון 🎤", "text-rose-500");
-                else if(event.error === 'no-speech') showFeedback("לא שמעתי... נסו שוב 🎤", "text-amber-500");
-                else showFeedback("תקלת מיקרופון. נסו שוב.", "text-rose-500");
-            };
-            
-            recognition.onend = function() { stopListening(); };
+
+                    // Detailed error handling
+                    switch(event.error) {
+                        case 'not-allowed':
+                            isMicrophonePermissionDenied = true;
+                            showFeedback("❌ יש לאשר גישה למיקרופון\n⚙️ בדוקו הגדרות הדפדפן", "text-rose-500");
+                            break;
+                        case 'no-speech':
+                            if (recognitionRetries < MAX_RETRIES) {
+                                showFeedback("לא שמעתי... מנסים שוב 🎤", "text-amber-500");
+                                setTimeout(() => startListening(), 500);
+                                recognitionRetries++;
+                            } else {
+                                showFeedback("נסו לדבר ברור יותר 🎤", "text-rose-500");
+                            }
+                            break;
+                        case 'network-error':
+                            showFeedback("🌐 בעיה בחיבור אינטרנט", "text-rose-500");
+                            break;
+                        case 'service-not-available':
+                            showFeedback("⚠️ שירות זיהוי קול לא זמין\nנסו שוב בעוד רגע", "text-rose-500");
+                            break;
+                        case 'bad-grammar':
+                            showFeedback("שגיאה בהגדרות הקול 🎤", "text-amber-500");
+                            break;
+                        default:
+                            showFeedback("שגיאת מיקרופון: " + event.error, "text-rose-500");
+                    }
+                };
+
+                recognition.onend = function() {
+                    clearTimeout(recognitionTimeout);
+                    stopListening();
+                };
+
+                return true;
+            } catch (e) {
+                console.error("Failed to initialize speech recognition:", e);
+                return false;
+            }
+        }
+
+        // Initialize on page load
+        let microphoneAvailable = false;
+        if (SpeechRecognition) {
+            microphoneAvailable = initSpeechRecognition();
+        }
+
+        // Check microphone permission status
+        async function checkMicrophonePermission() {
+            try {
+                const permission = await navigator.permissions.query({ name: 'microphone' });
+                console.log("Microphone permission status:", permission.state);
+                return permission.state !== 'denied';
+            } catch (e) {
+                console.log("Permission query not supported, will check on first use");
+                return true;
+            }
+        }
+
+        // Run permission check on startup
+        if (navigator.permissions && navigator.permissions.query) {
+            checkMicrophonePermission();
         }
 
         function shuffleArray(array) {
@@ -311,31 +419,63 @@
             const actionBtn = document.getElementById('action-btn');
             actionBtn.classList.remove('hidden', 'listening', 'bg-blue-500', 'bg-emerald-500');
             
+            // Enhanced browser support check
+            const hasSpeechSupport = !!SpeechRecognition && recognition !== null;
+
             if(mode === 'speaking') {
-                if (!SpeechRecognition) { alert("נדרש מיקרופון לדפדפן זה."); goBackToMenu(); return; }
-                actionBtn.classList.add('bg-blue-500'); document.getElementById('action-icon').innerText = "🎤"; document.getElementById('action-text').innerText = "לחצו ודברו";
+                if (!hasSpeechSupport) {
+                    showFeedback("❌ מיקרופון לא זמין בדפדפן זה\n💡 נסו בכרום או Edge", "text-rose-500");
+                    setTimeout(() => goBackToMenu(), 2000);
+                    return;
+                }
+                actionBtn.classList.add('bg-blue-500');
+                document.getElementById('action-icon').innerText = "🎤";
+                document.getElementById('action-text').innerText = "לחצו ודברו";
             } else {
-                actionBtn.classList.add('bg-emerald-500'); document.getElementById('action-icon').innerText = "🔊"; document.getElementById('action-text').innerText = "השמע שוב";
+                actionBtn.classList.add('bg-emerald-500');
+                document.getElementById('action-icon').innerText = "🔊";
+                document.getElementById('action-text').innerText = "השמע שוב";
             }
 
             if (mode === 'memory') {
-                document.getElementById('main-title').innerText = "משחק הזיכרון 🧠"; document.getElementById('sub-title').innerText = "הביטו בזוגות, כי תכף הם יתערבבו!";
-                document.getElementById('memory-screen').classList.remove('hidden'); document.getElementById('multi-score-area').classList.remove('hidden');
-                document.getElementById('progress-container').classList.add('hidden'); startMemoryGame();
+                document.getElementById('main-title').innerText = "משחק הזיכרון 🧠";
+                document.getElementById('sub-title').innerText = "הביטו בזוגות, כי תכף הם יתערבבו!";
+                document.getElementById('memory-screen').classList.remove('hidden');
+                document.getElementById('multi-score-area').classList.remove('hidden');
+                document.getElementById('progress-container').classList.add('hidden');
+                startMemoryGame();
             } else {
-                document.getElementById('game-screen').classList.remove('hidden'); document.getElementById('single-score-area').classList.remove('hidden');
-                document.getElementById('progress-container').classList.remove('hidden'); document.getElementById('progress-bar').style.width = '0%';
-                
-                if (mode === 'letters') { document.getElementById('main-title').innerText = "משחק אותיות 🅰️"; document.getElementById('sub-title').innerText = "הקשיבו לאות ובחרו אותה מבין האפשרויות."; } 
-                else if (mode === 'sounds') { document.getElementById('main-title').innerText = "צליל פותח 🍎"; document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו באיזו אות היא מתחילה."; } 
-                else if (mode === 'missing') { document.getElementById('main-title').innerText = "השלם מילה 🧩"; document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו את האות שחסרה."; } 
-                else if (mode === 'elimination') { document.getElementById('main-title').innerText = "משחק הניפוי 🧹"; document.getElementById('sub-title').innerText = "החליקו וזרקו החוצה את כל האותיות השגויות!"; } 
-                else if (mode === 'sentences') {
-                    if (!SpeechRecognition) { alert("השלב דורש מיקרופון. נסו בכרום."); goBackToMenu(); return; }
-                    document.getElementById('main-title').innerText = "השלם משפט PRO 📝"; document.getElementById('sub-title').innerText = "בצעו את המשימות שלב אחר שלב!";
-                } 
-                else if (mode === 'speaking') { document.getElementById('main-title').innerText = "אתגר הדיבור 🎤"; document.getElementById('sub-title').innerText = "לחצו על המיקרופון ואמרו את המילה באנגלית!"; }
-                initDeck(); generateRound();
+                document.getElementById('game-screen').classList.remove('hidden');
+                document.getElementById('single-score-area').classList.remove('hidden');
+                document.getElementById('progress-container').classList.remove('hidden');
+                document.getElementById('progress-bar').style.width = '0%';
+
+                if (mode === 'letters') {
+                    document.getElementById('main-title').innerText = "משחק אותיות 🅰️";
+                    document.getElementById('sub-title').innerText = "הקשיבו לאות ובחרו אותה מבין האפשרויות.";
+                } else if (mode === 'sounds') {
+                    document.getElementById('main-title').innerText = "צליל פותח 🍎";
+                    document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו באיזו אות היא מתחילה.";
+                } else if (mode === 'missing') {
+                    document.getElementById('main-title').innerText = "השלם מילה 🧩";
+                    document.getElementById('sub-title').innerText = "הקשיבו למילה ובחרו את האות שחסרה.";
+                } else if (mode === 'elimination') {
+                    document.getElementById('main-title').innerText = "משחק הניפוי 🧹";
+                    document.getElementById('sub-title').innerText = "החליקו וזרקו החוצה את כל האותיות השגויות!";
+                } else if (mode === 'sentences') {
+                    if (!hasSpeechSupport) {
+                        showFeedback("❌ משחק זה דורש מיקרופון\n💡 נסו בכרום או Edge", "text-rose-500");
+                        setTimeout(() => goBackToMenu(), 2000);
+                        return;
+                    }
+                    document.getElementById('main-title').innerText = "השלם משפט PRO 📝";
+                    document.getElementById('sub-title').innerText = "בצעו את המשימות שלב אחר שלב!";
+                } else if (mode === 'speaking') {
+                    document.getElementById('main-title').innerText = "אתגר הדיבור 🎤";
+                    document.getElementById('sub-title').innerText = "לחצו על המיקרופון ואמרו את המילה באנגלית!";
+                }
+                initDeck();
+                generateRound();
             }
         }
 
@@ -553,22 +693,88 @@
         // ==========================================
         //  דיבור (Speech), החלקות (Swipe) וזיכרון (Memory)
         // ==========================================
-        function toggleListening() { if (!recognition) return; if (isListening) stopListening(); else startListening(); }
+        function toggleListening() {
+            if (!recognition) {
+                showFeedback("❌ מיקרופון לא זמין\n⚙️ בדוקו הגדרות הדפדפן", "text-rose-500");
+                return;
+            }
+            if (isListening) stopListening();
+            else startListening();
+        }
+
         function startListening() {
-            try { recognition.start(); isListening = true; document.getElementById('action-btn').classList.add('listening'); document.getElementById('action-text').innerText = "🔴 מקשיב..."; showFeedback("דברו עכשיו...", "text-pink-500"); } catch(e) {}
+            if (!recognition) {
+                showFeedback("❌ מיקרופון לא זמין", "text-rose-500");
+                return;
+            }
+
+            try {
+                isListening = true;
+                const actionBtn = document.getElementById('action-btn');
+                actionBtn.classList.add('listening');
+                actionBtn.classList.remove('active:shadow-none');
+                document.getElementById('action-text').innerText = "🔴 מקשיב...";
+
+                showFeedback("🎤 דברו עכשיו!\nיש לך 6 שניות", "text-pink-500");
+
+                // Try to start recognition
+                if (recognition.state === 'inactive') {
+                    recognition.start();
+                }
+            } catch(e) {
+                console.error("Error starting listening:", e);
+                isListening = false;
+                showFeedback("שגיאה בהתחלת המיקרופון", "text-rose-500");
+            }
         }
+
         function stopListening() {
-            if(recognition) recognition.stop(); isListening = false; document.getElementById('action-btn').classList.remove('listening'); document.getElementById('action-text').innerText = "לחצו ודברו";
+            if(!recognition) return;
+            try {
+                isListening = false;
+                clearTimeout(recognitionTimeout);
+                recognition.stop();
+                const actionBtn = document.getElementById('action-btn');
+                actionBtn.classList.remove('listening');
+                document.getElementById('action-text').innerText = "לחצו ודברו";
+            } catch(e) {
+                console.error("Error stopping listening:", e);
+            }
         }
+
         function handleSpeechResult(transcript) {
             if (isTransitioning) return;
+
             const targetWord = (gameMode === 'sentences') ? currentItem.correct.toLowerCase() : currentItem.word.toLowerCase();
-            if (transcript === targetWord || transcript.includes(" " + targetWord) || transcript.includes(targetWord + " ")) {
-                isTransitioning = true; showFeedback(`מצוין! שמעתי אותך אומר "${targetWord}" 🏆`, "text-emerald-600");
-                updateScore(1); consecutiveCorrect++;
-                const wordDisplay = document.querySelector('#visual-display div:nth-child(2)'); if(wordDisplay) wordDisplay.classList.add('text-emerald-500', 'animate-pop');
+
+            // Better word matching with variations
+            const matches = [
+                transcript === targetWord, // Exact match
+                transcript.includes(targetWord), // Substring match
+                targetWord.includes(transcript) && transcript.length > 3, // Partial match (for longer words)
+                transcript.split(' ').includes(targetWord) // Word in phrase
+            ];
+
+            if (matches.some(m => m)) {
+                isTransitioning = true;
+                stopListening();
+                showFeedback(`✅ מדהים! שמעתי: "${targetWord}" 🏆`, "text-emerald-600");
+                updateScore(1);
+                consecutiveCorrect++;
+                const wordDisplay = document.querySelector('#visual-display div:nth-child(2)');
+                if(wordDisplay) wordDisplay.classList.add('text-emerald-500', 'animate-pop');
                 setTimeout(generateRound, 2000);
-            } else { showFeedback(`שמעתי: "${transcript}"\n נסו להגיד "${targetWord}" ברור יותר 🎤`, "text-rose-500"); consecutiveCorrect = 0; }
+            } else {
+                stopListening();
+                showFeedback(`שמעתי: "${transcript}"\n\n🎤 נסו שוב: "${targetWord}"`, "text-rose-500");
+                consecutiveCorrect = 0;
+                // Auto-retry after 1.5 seconds
+                setTimeout(() => {
+                    if (!isTransitioning && gameMode === 'speaking') {
+                        startListening();
+                    }
+                }, 1500);
+            }
         }
 
         function attachSwipeEvents(btn, selectedOption, correctOption) {
